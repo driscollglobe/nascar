@@ -350,6 +350,83 @@ kbd {
   .bigtotal .v { font-size: 72px; }
 }
 
+/* ===== logo slot ===== */
+.logo-slot { align-items: center; gap: 8px; position: relative; }
+.brand-logo { height: 30px; width: auto; max-width: 190px; display: block; }
+.brand-fallback { display: inline-flex; align-items: baseline; gap: 8px; }
+
+/* ===== head to head reveal ===== */
+.vs {
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 14px 8px;
+  margin: 6px 0 4px;
+}
+.vs-tops {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.vs-top { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vs-top.you { align-items: flex-start; text-align: left; }
+.vs-top.them { align-items: flex-end; text-align: right; }
+.vs-top .lbl { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.vs-top .tot { font-family: var(--display); font-weight: 700; font-size: 52px; line-height: 0.85; }
+.vs-top.you .tot { color: var(--amber); transition: color 200ms; }
+.vs-top.them .tot { color: var(--text); }
+.vs-top .tot.victory { color: var(--amber); }
+.vs-top .tot.win { color: var(--green); }
+.vs-top .tot.miss { color: var(--red); }
+.vs-x { font-weight: 700; font-size: 14px; color: var(--faint); padding: 0 2px; }
+
+.vs-rows { padding-top: 8px; }
+.vs-row {
+  display: grid;
+  grid-template-columns: 1fr 18px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(40, 50, 63, 0.5);
+}
+.vs-row:last-child { border-bottom: 0; }
+.vs-tick { width: 6px; height: 6px; border-radius: 50%; background: var(--line2); margin: 0 auto; }
+.vs-row .cell { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.vs-row .cell.you { justify-content: space-between; }
+.vs-row .cell.them { justify-content: space-between; flex-direction: row; }
+.vs-row .cell .nm {
+  font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.05;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vs-row .cell.them .nm { text-align: right; }
+.vs-row .cell .w { font-family: var(--display); font-weight: 700; font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vs-row .cell .w.lead { color: var(--amber2); }
+.vs-row .cell.empty { opacity: 0.25; }
+.w.appear, .cell.appear { animation: deal 280ms var(--ease); }
+
+/* ===== shared seed rating + seam flags ===== */
+.pct {
+  display: flex; flex-direction: column; gap: 2px;
+  background: rgba(63, 216, 226, 0.08);
+  border: 1px solid rgba(63, 216, 226, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px; margin: 10px 0;
+}
+.pct-k { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan); }
+.pct-v { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--text); }
+
+.seam-flag {
+  font-size: 12px; color: var(--muted);
+  background: var(--panel2);
+  border: 1px dashed var(--line2);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px; margin: 8px 0;
+}
+.seam-flag::before { content: "seam "; font-family: var(--display); font-weight: 700; color: var(--faint); letter-spacing: 0.08em; }
+
   </style>
 </head>
 <body>
@@ -381,13 +458,38 @@ const JSON_DATA_PATH = "./lineup-data.json";
 // Daily uses UTC so every player on a date gets the same deal.
 const DAILY_TIMEZONE = "UTC";
 
-// Pack and pressure defaults. The pack builder clamps to available cards.
+// Era matched packs. Each org season deals only drivers from that same season.
+// A 1967 driver can never fill a 2021 seat. This is a rule, not an option, but
+// the flag stays here so it is explicit and testable.
+const ERA_MATCHED = true;
+
+// Pack and pressure. These are the difficulty levers. They do not touch any real
+// win total. Tune passes and pack size to move the win rate. Run the sweep
+// (tests/sweep.html) after any change to see the effect.
 const PACK = {
   minSize: 6,
   maxSize: 8,
-  // Passes by band. Harder bands give fewer passes.
-  passesByBand: { LEGEND: 2, HARD: 2, FAIR: 3, OPEN: 3 },
-  defaultPasses: 3,
+  // Passes by band. Fewer passes is harder. Harder bands give fewer passes.
+  passesByBand: { LEGEND: 1, HARD: 2, FAIR: 2, OPEN: 3 },
+  defaultPasses: 2,
+};
+
+// The target a tuned daily should hit, for the sweep report to measure against.
+// A smart draft should win roughly half to two thirds of the time, with a rare
+// Victory Lane. Reaching this needs a deep same season driver pool, which is the
+// verified dataset's job. The sweep reports the real current numbers either way.
+const DIFFICULTY = {
+  targetWinRateLow: 0.5,
+  targetWinRateHigh: 0.66,
+  targetVictoryLaneMax: 0.15,
+};
+
+// Official logo slot. Drop a file at this path and it renders in the header in
+// place of the text wordmark. Until then the wordmark is the placeholder.
+// build.py inlines the file as a data URI if it exists at build time.
+const LOGO = {
+  src: "./assets/motorsport-logo.svg",
+  alt: "Motorsport.com",
 };
 
 // Feature switches. Sound is off by default, motion respects the OS setting.
@@ -396,6 +498,9 @@ const FEATURES = {
   haptics: true,
   leaderboard: false, // shared seed makes this a clean drop in later
 };
+
+// Debug hook on window. Off in production. Turns on with ?debug=1 in the URL.
+const DEBUG = false;
 
 
 /* ===== src/data/schema.js ===== */
@@ -803,38 +908,63 @@ function seatSlot(index, filledCard) {
 
 /* ===== src/ui/share.js ===== */
 // share.js
-// The emoji summary, in the Two Seats share style. No em dashes, no en dashes.
+// The share card, built to be posted. Compact, distinctive, instantly readable.
+// A head to head of your draft against the real dynasty, with tier squares as
+// the visual and the shared seed percentile as the brag line. No em or en dash.
 
 
 const TIER_EMOJI = {
   LEGEND: "🟨",
   CHAMPION: "🟦",
   "RACE WINNER": "🟩",
-  CONTENDER: "⬜",
+  CONTENDER: "🟧",
   FIELD: "⬛",
 };
 
 const OUTCOME_LINE = {
-  [OUTCOME.VICTORY_LANE]: "🏆 VICTORY LANE",
+  [OUTCOME.VICTORY_LANE]: "🏁 VICTORY LANE",
   [OUTCOME.WIN]: "✅ WIN",
   [OUTCOME.MISS]: "❌ MISS",
 };
 
-// ctx: { dayNo, org, year, result, signed, streak, mode }
+function squares(cards) {
+  return cards.map((c) => TIER_EMOJI[c.tier] || "⬛").join("");
+}
+
+function pad2(n) {
+  return String(n).padStart(2, " ");
+}
+
+function diffTag(diff) {
+  if (diff > 0) return `(+${diff})`;
+  if (diff === 0) return "(even)";
+  return `(${diff})`;
+}
+
+// ctx: { dayNo, org, year, result, signed, dynastyRoster, percentile, streak, mode }
 function buildShareText(ctx) {
-  const { dayNo, org, year, result, signed, streak, mode } = ctx;
-  const title = mode === "daily" ? `THE LINEUP #${dayNo}` : "THE LINEUP (Archive)";
-  const tiers = signed.map((c) => TIER_EMOJI[c.tier] || "⬛").join("");
-  const diff = result.diff >= 0 ? `+${result.diff}` : `${result.diff}`;
+  const { dayNo, org, year, result, signed, dynastyRoster, percentile, streak, mode } = ctx;
+
+  const title = mode === "daily" ? `THE LINEUP #${dayNo}` : "THE LINEUP  Archive";
 
   const lines = [
-    `${title} · ${year} ${org}`,
-    `🏁 You ${result.total} vs ${result.benchmark} to beat`,
-    `${OUTCOME_LINE[result.outcome]} (${diff})`,
-    tiers,
+    title,
+    `${year} ${org}`,
+    `${OUTCOME_LINE[result.outcome]}  ${diffTag(result.diff)}`,
+    "",
+    `YOU ${pad2(result.total)}  ${squares(signed)}`,
+    `DYN ${pad2(result.benchmark)}  ${squares(dynastyRoster)}`,
+    "",
   ];
-  if (mode === "daily" && streak > 0) lines.push(`🔥 Streak ${streak}`);
-  lines.push("motorsport.com/the-lineup");
+
+  if (percentile && percentile.lineups > 1) {
+    lines.push(percentile.isBest ? "🏆 best possible draft" : `📊 beat ${percentile.beatPct}% of lineups`);
+  }
+  if (mode === "daily" && streak > 0) {
+    lines.push(`🔥 streak ${streak}`);
+  }
+  lines.push("motorsport.com/lineup");
+
   return lines.join("\n");
 }
 
@@ -859,76 +989,92 @@ async function shareOrCopy(text) {
 
 /* ===== src/ui/reveal.js ===== */
 // reveal.js
-// The tally and the reveal. Reveals each drafted driver's real wins one by one,
-// sums them against the benchmark, calls the result, then celebrates what the
-// real dynasty actually did that season. This is the nostalgia payoff.
+// The payoff. A head to head: your drafted lineup against the real dynasty,
+// driver by driver, totals counting up, the dynasty named and celebrated. This
+// is where the polish goes.
 
 
 const VERDICT = {
   [OUTCOME.VICTORY_LANE]: { cls: "victory", word: "VICTORY LANE", sub: "You beat the real dynasty." },
-  [OUTCOME.WIN]: { cls: "win", word: "WIN", sub: "You matched the benchmark." },
-  [OUTCOME.MISS]: { cls: "miss", word: "MISS", sub: "Short of the benchmark this time." },
+  [OUTCOME.WIN]: { cls: "win", word: "WIN", sub: "You matched the dynasty." },
+  [OUTCOME.MISS]: { cls: "miss", word: "MISS", sub: "Short of the dynasty this time." },
 };
 
-function bigTotal(youVal, benchVal) {
-  return el("div", { class: "bigtotal" }, [
-    el("div", { class: "you" }, [
-      el("span", { class: "k", text: "Your wins" }),
-      el("span", { class: "v num", id: "rev-you", text: String(youVal) }),
-    ]),
-    el("span", { class: "vs", text: "vs" }),
-    el("div", { class: "bench" }, [
-      el("span", { class: "k", text: "To beat" }),
-      el("span", { class: "v num", text: String(benchVal) }),
-    ]),
-  ]);
+// A short, clean org name for the head to head label.
+function shortOrg(org) {
+  let s = org.replace(/\s*\(.*?\)\s*/g, " ").trim();
+  s = s.replace(/\b(Motorsports|Motorsport|Racing|Enterprises|Team|Inc\.?)\b/gi, "").trim();
+  return s || org;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 
 // Build the result view. Returns { node, play }. play() runs the animated reveal.
 function buildResultView(ctx) {
-  const { signed, result, orgSeason, sound } = ctx;
+  const { signed, result, orgSeason, sound, percentile, comparison } = ctx;
   const reduced = prefersReducedMotion();
 
-  const youTotalEl = bigTotal(0, result.benchmark);
+  const yours = signed.slice().sort((a, b) => b.wins - a.wins);
+  const theirs = orgSeason.realRoster.slice().sort((a, b) => b.wins - a.wins);
+  const rowCount = Math.max(yours.length, theirs.length);
 
-  // Your draft rows, wins hidden until revealed.
-  const draftRows = signed.map((c) => {
-    const t = tierMeta(c.tier);
-    const w = el("span", { class: "w", text: "??", style: `color:${t.color}` });
-    const row = el("li", {}, [
-      el("div", { class: "who" }, [
-        el("span", { class: "nm", text: c.driver }),
-        el("span", { class: "yr", text: `${c.year} · ${t.label}` }),
-      ]),
-      w,
-    ]);
-    return { row, w, card: c };
-  });
+  // Top scoreboard. Your total counts up, the dynasty target shows at once
+  // because you chased it the whole deal.
+  const youTot = el("div", { class: "tot num", id: "you-tot", text: "0" });
+  const themTot = el("div", { class: "tot num", text: String(result.benchmark) });
 
-  const draftList = el("ul", { class: "revlist" }, draftRows.map((r) => r.row));
-
-  const bannerHost = el("div", {});
-  const dynastyHost = el("div", {});
-
-  const node = el("div", { class: "result" }, [
-    el("div", { class: "checker thin" }),
-    el("div", { class: "section-title", text: "Your draft" }),
-    youTotalEl,
-    draftList,
-    bannerHost,
-    dynastyHost,
+  const tops = el("div", { class: "vs-tops" }, [
+    el("div", { class: "vs-top you" }, [el("div", { class: "lbl", text: "Your lineup" }), youTot]),
+    el("div", { class: "vs-x display", text: "VS" }),
+    el("div", { class: "vs-top them" }, [
+      el("div", { class: "lbl", text: `${orgSeason.year} ${shortOrg(orgSeason.org)}` }),
+      themTot,
+    ]),
   ]);
 
-  const youValEl = () => node.querySelector("#rev-you");
+  // Driver by driver rows.
+  const rowRefs = [];
+  const rows = [];
+  for (let i = 0; i < rowCount; i++) {
+    const y = yours[i];
+    const t = theirs[i];
+    const yW = y ? el("span", { class: "w", text: "??", style: `color:${tierMeta(y.tier).color}` }) : null;
+    const tW = t ? el("span", { class: "w", text: "??" }) : null;
+    const yCell = el("div", { class: "cell you" + (y ? "" : " empty") }, y
+      ? [el("span", { class: "nm", text: y.driver }), yW]
+      : [el("span", { class: "nm faint", text: "" })]);
+    const tCell = el("div", { class: "cell them" + (t ? "" : " empty") }, t
+      ? [tW, el("span", { class: "nm", text: t.driver })]
+      : [el("span", { class: "nm faint", text: "" })]);
+    rows.push(el("div", { class: "vs-row" }, [yCell, el("div", { class: "vs-tick" }), tCell]));
+    rowRefs.push({ y, t, yW, tW });
+  }
+  const grid = el("div", { class: "vs-rows" }, rows);
+
+  const bannerHost = el("div", {});
+  const celebrateHost = el("div", {});
+
+  const node = el("div", { class: "result" }, [
+    el("div", { class: "vs" }, [tops, grid]),
+    bannerHost,
+    celebrateHost,
+  ]);
+
+  function setYou(v) {
+    youTot.textContent = String(v);
+  }
 
   function revealBanner() {
     const v = VERDICT[result.outcome];
-    const diff = result.diff >= 0 ? `+${result.diff}` : `${result.diff}`;
-    const banner = el("div", { class: `banner ${v.cls}`, role: "status" }, [
-      el("div", { class: "verdict", text: v.word }),
-      el("div", { class: "sub", text: `${v.sub} ${result.total} to ${result.benchmark}. (${diff})` }),
-    ]);
-    mount(bannerHost, banner);
+    if (node.dataset.banner) return;
+    node.dataset.banner = "1";
+    youTot.classList.add(v.cls);
+    mount(bannerHost, el("div", { class: `banner ${v.cls}`, role: "status" }, [
+      el("div", { class: "verdict display", text: v.word }),
+      el("div", { class: "sub", text: `${v.sub} ${result.total} to ${result.benchmark}.` }),
+    ]));
     if (sound) {
       if (result.outcome === OUTCOME.VICTORY_LANE) sound.victory();
       else if (result.outcome === OUTCOME.WIN) sound.win();
@@ -936,50 +1082,61 @@ function buildResultView(ctx) {
     }
   }
 
-  function revealDynasty() {
-    const os = orgSeason;
-    const rows = os.realRoster
-      .slice()
-      .sort((a, b) => b.wins - a.wins)
-      .map((r) =>
-        el("li", { class: "appear" }, [
-          el("div", { class: "who" }, [
-            el("span", { class: "nm", text: r.driver }),
-            el("span", { class: "yr", text: tierMeta(r.tier).label }),
-          ]),
-          el("span", { class: "w", text: String(r.wins) }),
-        ])
-      );
-    const dyn = el("div", {}, [
-      el("div", { class: "section-title", text: "What they actually did" }),
+  function revealCelebrate() {
+    if (node.dataset.celebrate) return;
+    node.dataset.celebrate = "1";
+    const kids = [
+      el("div", { class: "section-title", text: "The dynasty" }),
       el("div", { class: "dynasty" }, [
         el("div", {
           class: "head",
-          html: `The real <b>${os.year} ${os.org}</b> won <b>${os.benchmarkWins}</b> races across its lineup that season. ${escapeHtml(os.note || "")}`,
+          html: `The real <b>${escapeHtml(orgSeason.year + " " + orgSeason.org)}</b> won <b>${orgSeason.benchmarkWins}</b> races across its lineup that season. ${escapeHtml(orgSeason.note || "")}`,
         }),
-        el("ul", { class: "revlist" }, rows),
       ]),
-    ]);
-    mount(dynastyHost, dyn);
+    ];
+
+    if (percentile && percentile.lineups > 1) {
+      const pct = percentile.isBest
+        ? "Best possible draft from this deal. Nobody could top it."
+        : `Your draft beat ${percentile.beatPct} percent of all possible lineups from this deal.`;
+      kids.push(el("div", { class: "pct" }, [
+        el("span", { class: "pct-k", text: "Shared seed rating" }),
+        el("span", { class: "pct-v", text: pct }),
+      ]));
+    }
+
+    // Live player percentile is a flagged seam until the results service exists.
+    if (comparison && comparison.connected === false) {
+      kids.push(el("div", { class: "seam-flag", text: "Live percentile versus other players: pending the results service." }));
+    }
+
+    mount(celebrateHost, el("div", {}, kids));
   }
 
   function play() {
     return new Promise((resolve) => {
-      let running = 0;
       let i = 0;
+      let running = 0;
       let skipped = false;
 
       const finishAll = () => {
-        // Set every row and the total to final, then banner and dynasty.
         running = result.total;
-        draftRows.forEach((r) => {
-          r.w.textContent = String(r.card.wins);
+        rowRefs.forEach((r) => {
+          if (r.yW) r.yW.textContent = String(r.y.wins);
+          if (r.tW) r.tW.textContent = String(r.t.wins);
+          if (r.y && r.t) markRow(r);
         });
-        youValEl().textContent = String(running);
+        setYou(running);
         revealBanner();
-        revealDynasty();
+        revealCelebrate();
         node.removeEventListener("click", onSkip);
         resolve();
+      };
+
+      const markRow = (r) => {
+        if (!r.y || !r.t) return;
+        if (r.y.wins > r.t.wins) r.yW.classList.add("lead");
+        else if (r.t.wins > r.y.wins) r.tW.classList.add("lead");
       };
 
       const onSkip = () => {
@@ -995,35 +1152,53 @@ function buildResultView(ctx) {
 
       node.addEventListener("click", onSkip);
 
-      const step = () => {
+      // Phase 1: reveal your drivers, counting your total up.
+      const stepYou = () => {
         if (skipped) return;
-        if (i >= draftRows.length) {
+        if (i >= rowRefs.length) {
+          setTimeout(stepThem, 260);
+          return;
+        }
+        const r = rowRefs[i];
+        if (r.yW) {
+          r.yW.textContent = String(r.y.wins);
+          r.yW.parentElement.classList.add("appear");
+          running += r.y.wins;
+          setYou(running);
+          if (sound) sound.deal();
+        }
+        i += 1;
+        setTimeout(stepYou, 520);
+      };
+
+      // Phase 2: reveal how the real dynasty did it.
+      let j = 0;
+      const stepThem = () => {
+        if (skipped) return;
+        if (j >= rowRefs.length) {
           revealBanner();
           setTimeout(() => {
-            if (!skipped) revealDynasty();
+            if (!skipped) revealCelebrate();
             node.removeEventListener("click", onSkip);
             resolve();
           }, 420);
           return;
         }
-        const r = draftRows[i];
-        r.w.textContent = String(r.card.wins);
-        r.row.classList.add("appear");
-        running += r.card.wins;
-        youValEl().textContent = String(running);
-        if (sound) sound.deal();
-        i += 1;
-        setTimeout(step, 560);
+        const r = rowRefs[j];
+        if (r.tW) {
+          r.tW.textContent = String(r.t.wins);
+          r.tW.parentElement.classList.add("appear");
+        }
+        if (r.y && r.t) markRow(r);
+        j += 1;
+        setTimeout(stepThem, 300);
       };
-      setTimeout(step, 360);
+
+      setTimeout(stepYou, 360);
     });
   }
 
   return { node, play };
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 
 
@@ -1203,6 +1378,27 @@ async function getIntegrity() {
 }
 
 
+/* ===== src/data/comparison.js ===== */
+// comparison.js
+// Seam for the live "you versus other players on this daily seed" percentile.
+// That number can only come from a results service that aggregates real plays.
+// It does not exist yet, so this returns not connected and the UI flags it.
+// We do not fabricate a field of other players. The shared seed percentile
+// against all possible lineups (see analyze.js draftPercentile) is the honest,
+// shippable comparison available today.
+//
+// When the results service is built, implement submit and fetch here against it.
+// The shared seed means the same deal for everyone, so it slots in cleanly.
+
+async function getDailyComparison(/* seed, result */) {
+  return { connected: false, reason: "Live player percentile needs the results service." };
+}
+
+async function submitDailyResult(/* seed, result */) {
+  return { connected: false };
+}
+
+
 /* ===== src/game/daily.js ===== */
 // daily.js
 // Turns a date into a deterministic org season and pack seed. Same date gives
@@ -1254,9 +1450,15 @@ function resolveDaily(orgSeasons, date = new Date()) {
 /* ===== src/game/deal.js ===== */
 // deal.js
 // Builds the pack for a run. Pure given an org season, the full pool, and a seed.
-// Guarantees the deal is winnable: the pack always contains the org's real
-// roster, so a faithful draft can at least match the benchmark, and the order is
-// validated against the solver.
+//
+// Era matched: the pack is drawn only from drivers who raced that same season.
+// A 1967 driver can never fill a 2021 seat. The org's real roster is always in
+// the pack, so a faithful draft can at least match the benchmark, and the order
+// is validated against the solver to keep the deal winnable.
+//
+// When the same season pool is too thin to offer real choices (only the roster
+// is available), the run carries a dataGap flag. The game does not invent
+// drivers to fill it. It flags the gap and the verified dataset fills it later.
 
 
 function passesForBand(band) {
@@ -1277,14 +1479,17 @@ function rosterCards(orgSeason, pool) {
   });
 }
 
-// Build the run: seats, passes, and the ordered pack of driver cards.
+// Build the run: seats, passes, the ordered pack, and a data gap flag.
 function buildRun(orgSeason, pool, seedStr) {
   const seats = orgSeason.seats;
   const passes = passesForBand(orgSeason.band);
 
   const roster = rosterCards(orgSeason, pool);
   const rosterIds = new Set(roster.map((c) => c.id));
-  const others = pool.filter((c) => !rosterIds.has(c.id));
+
+  // Era matched: distractors must come from the same season as the target.
+  const sameSeason = ERA_MATCHED ? pool.filter((c) => c.year === orgSeason.year) : pool;
+  const others = sameSeason.filter((c) => !rosterIds.has(c.id));
 
   const target = clamp(seats + passes + 2, PACK.minSize, PACK.maxSize);
   const packSize = Math.min(target, roster.length + others.length);
@@ -1294,6 +1499,12 @@ function buildRun(orgSeason, pool, seedStr) {
   const chosenDistractors = shuffle(others, baseRng).slice(0, distractorCount);
 
   const cards = roster.concat(chosenDistractors);
+
+  // Data gap: there are not enough verified same season drivers to offer a real
+  // draft beyond the roster. The deal still runs, honestly flagged.
+  const desiredDistractors = target - roster.length;
+  const shortfall = Math.max(0, desiredDistractors - chosenDistractors.length);
+  const dataGap = shortfall > 0;
 
   // Deterministic order, validated winnable. Perturb the seed until a winnable
   // order is found. A winnable order always exists because the pack contains the
@@ -1314,10 +1525,14 @@ function buildRun(orgSeason, pool, seedStr) {
 
   return {
     orgId: orgSeason.id,
+    year: orgSeason.year,
     seats,
     passes,
     pack,
     benchmark: orgSeason.benchmarkWins,
+    dataGap,
+    shortfall,
+    poolDepth: sameSeason.length, // verified same season drivers available
   };
 }
 
@@ -1441,6 +1656,133 @@ class Engine {
 }
 
 
+/* ===== src/game/analyze.js ===== */
+// analyze.js
+// Difficulty measurement and the shared seed percentile. All pure. No real win
+// total is ever changed here. This only measures and simulates.
+
+
+// Every distinct lineup a player could end up with from one ordered deal, under
+// the seat and pass rules. Returns the total wins of each reachable lineup.
+// Packs are small (<= 8 cards), so a full enumeration is cheap.
+function reachableLineups(packWins, seats, passes) {
+  const n = packWins.length;
+  const totals = [];
+  function rec(i, chosen, sum, passesLeft) {
+    if (chosen === seats) {
+      totals.push(sum);
+      return;
+    }
+    if (i >= n) return; // cannot fill the seats
+    // sign card i
+    rec(i + 1, chosen + 1, sum + packWins[i], passesLeft);
+    // pass card i, only if there is budget and enough cards remain to still fill
+    const seatsLeft = seats - chosen;
+    const cardsAfter = n - (i + 1);
+    if (passesLeft > 0 && cardsAfter >= seatsLeft) {
+      rec(i + 1, chosen, sum, passesLeft - 1);
+    }
+  }
+  rec(0, 0, 0, passes);
+  return totals;
+}
+
+// Where the player's total ranks among every possible lineup from the same deal.
+// Everyone faces the same seed, so this is a fair shared comparison with no
+// backend. "You beat X percent of possible lineups from this deal."
+function draftPercentile(playerTotal, packWins, seats, passes) {
+  const totals = reachableLineups(packWins, seats, passes);
+  const n = totals.length;
+  if (n === 0) return { beatPct: 0, lineups: 0, best: 0, isBest: false };
+  const worse = totals.filter((t) => t < playerTotal).length;
+  const best = Math.max(...totals);
+  return {
+    beatPct: Math.round((worse / n) * 100),
+    lineups: n,
+    best,
+    isBest: playerTotal >= best,
+  };
+}
+
+// A knowledgeable player who reads tiers but does not know the exact wins.
+// Signs anyone who wins races (RACE WINNER or better) on sight, passes lower
+// tiers while passes remain, and fills forced seats at the end. This models the
+// realistic difficulty, which is what the win rate target is about.
+function smartDraft(pack, seats, passes) {
+  let seatsLeft = seats;
+  let passesLeft = passes;
+  const signed = [];
+  for (let i = 0; i < pack.length && seatsLeft > 0; i++) {
+    const card = pack[i];
+    const rank = tierMeta(card.tier).rank; // 5 LEGEND down to 1 FIELD
+    const cardsAfter = pack.length - (i + 1);
+    const canPass = passesLeft > 0 && cardsAfter >= seatsLeft;
+    let sign;
+    if (!canPass) sign = true; // must fill
+    else if (rank >= 3) sign = true; // RACE WINNER or better, take it
+    else sign = false; // CONTENDER or FIELD, hold out for better
+    if (sign) {
+      signed.push(card);
+      seatsLeft -= 1;
+    } else {
+      passesLeft -= 1;
+    }
+  }
+  return signed;
+}
+
+// Run a sweep of dailies and report how a smart draft does. This is the number
+// to watch while tuning. It reports the honest current figures, including how
+// many dailies are degenerate (no real choice) because the same season pool is
+// too thin. That is the data dependency made visible.
+function sweep(orgSeasons, pool, days = 120, start = Date.UTC(2026, 0, 1)) {
+  let wins = 0;
+  let victoryLanes = 0;
+  let misses = 0;
+  let dataGaps = 0;
+  let degenerate = 0;
+  const byBand = {};
+
+  for (let day = 0; day < days; day++) {
+    const d = new Date(start + day * 86400000);
+    const daily = resolveDaily(orgSeasons, d);
+    const run = buildRun(daily.orgSeason, pool, daily.seed);
+
+    const signed = smartDraft(run.pack, run.seats, run.passes);
+    const res = scoreRun(signed, daily.orgSeason);
+    const optimal = solveMaxAchievable(run.pack.map((c) => c.wins), run.seats, run.passes);
+
+    if (res.outcome === OUTCOME.VICTORY_LANE) victoryLanes += 1;
+    else if (res.outcome === OUTCOME.WIN) wins += 1;
+    else misses += 1;
+
+    if (run.dataGap) dataGaps += 1;
+    if (run.pack.length <= run.seats) degenerate += 1; // forced deal, no choice
+
+    const b = daily.orgSeason.band;
+    byBand[b] = byBand[b] || { n: 0, win: 0, vl: 0 };
+    byBand[b].n += 1;
+    if (res.win) byBand[b].win += 1;
+    if (res.victoryLane) byBand[b].vl += 1;
+
+    void optimal; // measured per daily, surfaced via the per daily path when needed
+  }
+
+  const winRate = (wins + victoryLanes) / days;
+  return {
+    days,
+    winRate, // share of dailies a smart draft wins (includes Victory Lanes)
+    victoryLaneRate: victoryLanes / days,
+    missRate: misses / days,
+    dataGapRate: dataGaps / days,
+    degenerateRate: degenerate / days,
+    byBand,
+    target: DIFFICULTY,
+    inTargetBand: winRate >= DIFFICULTY.targetWinRateLow && winRate <= DIFFICULTY.targetWinRateHigh,
+  };
+}
+
+
 /* ===== src/stats/storage.js ===== */
 // storage.js
 // Career stats, streaks, and the results distribution. Backed by localStorage,
@@ -1507,8 +1849,9 @@ function getDailyRecord(dateKey) {
 }
 
 // Record a scored daily run. Idempotent per dateKey: a replay does not move the
-// streak or the totals. Returns the up to date stats.
-function recordDaily(dateKey, dayNo, result) {
+// streak or the totals. Returns the up to date stats. `extra` carries optional
+// fields to remember, like the shared seed draft percentile.
+function recordDaily(dateKey, dayNo, result, extra = {}) {
   const stats = getStats();
   if (stats.daily[dateKey]) return stats; // already counted this day
 
@@ -1542,6 +1885,7 @@ function recordDaily(dateKey, dayNo, result) {
     total: result.total,
     benchmark: result.benchmark,
     diff: result.diff,
+    beatPct: extra.beatPct ?? null,
     ts: Date.now(),
   };
 
@@ -1657,16 +2001,41 @@ function topbar(active) {
     });
 
   return el("header", { class: "topbar" }, [
-    el("div", { class: "brand" }, [
-      el("span", { class: "wordmark", text: "THE LINEUP" }),
-      el("span", { class: "dot display", text: "●" }),
-    ]),
+    brandSlot(),
     el("nav", { class: "nav", "aria-label": "Sections" }, [
       navBtn("home", "Daily"),
       navBtn("archive", "Archive"),
       navBtn("stats", "Stats"),
     ]),
   ]);
+}
+
+// Official logo slot. If a logo file exists at LOGO.src it renders here. Until
+// then the text wordmark is the placeholder. Drop a file at the path (and rerun
+// build.py for the embed) and it swaps in with no code change.
+function brandSlot() {
+  const wordmark = el("span", { class: "wordmark", text: "THE LINEUP" });
+  const dot = el("span", { class: "dot display", text: "●" });
+  const fallback = el("span", { class: "brand-fallback" }, [wordmark, dot]);
+
+  const slot = el("div", { class: "brand logo-slot", "data-logo-slot": "motorsport", title: "Logo slot" }, [fallback]);
+
+  // Try the logo image. If it is not there yet, the wordmark stays.
+  const img = el("img", {
+    class: "brand-logo",
+    src: LOGO.src,
+    alt: LOGO.alt,
+    onLoad: () => {
+      fallback.style.display = "none";
+      img.style.display = "block";
+    },
+    onError: () => {
+      img.remove();
+    },
+  });
+  img.style.display = "none";
+  slot.insertBefore(img, fallback);
+  return slot;
 }
 
 function footer() {
@@ -1764,6 +2133,12 @@ function playedSummary(rec) {
       el("div", { class: "verdict", text: v.word }),
       el("div", { class: "sub", text: `You drafted ${rec.total} against ${rec.benchmark} to beat.` }),
     ]),
+    rec.beatPct !== null && rec.beatPct !== undefined
+      ? el("div", { class: "pct", style: "margin:8px 0" }, [
+          el("span", { class: "pct-k", text: "Shared seed rating" }),
+          el("span", { class: "pct-v", text: `Beat ${rec.beatPct} percent of possible lineups.` }),
+        ])
+      : null,
     el("div", { class: "lede", text: `Streak ${stats.currentStreak}. Come back tomorrow for a new organization.` }),
     distributionBlock(stats),
   ]);
@@ -1824,7 +2199,13 @@ function renderDeal() {
 
   const hint = el("div", { class: "hintline", id: "hint" });
 
-  setScreen("deal", el("div", { class: "checker thin" }), hero, statusRow, stage, actions, hint);
+  // Era matched packs draw only from that season. When the verified pool for the
+  // year is thin, we flag it honestly rather than pull a driver from another era.
+  const gap = App.runCtx.run.dataGap
+    ? el("div", { class: "seam-flag", text: `Limited pack. More verified ${os.year} drivers needed to deepen this deal. Era matched, so no cross era fill.` })
+    : null;
+
+  setScreen("deal", el("div", { class: "checker thin" }), hero, gap, statusRow, stage, actions, hint);
 
   attachKeys();
   paintStatus();
@@ -1920,9 +2301,14 @@ function showResult() {
 
   track("tally", { org: orgSeason.id, total: result.total, benchmark: result.benchmark, mode });
 
+  // Shared seed rating: where this draft ranks among every possible lineup from
+  // the same deal. Honest, computable, no backend.
+  const run = App.runCtx.run;
+  const percentile = draftPercentile(result.total, run.pack.map((c) => c.wins), run.seats, run.passes);
+
   let streak = 0;
   if (mode === "daily" && daily) {
-    const stats = recordDaily(daily.dateKey, daily.dayNo, result);
+    const stats = recordDaily(daily.dateKey, daily.dayNo, result, { beatPct: percentile.beatPct });
     streak = stats.currentStreak;
   } else {
     streak = getStats().currentStreak;
@@ -1930,11 +2316,19 @@ function showResult() {
 
   track("result", { org: orgSeason.id, outcome: result.outcome, diff: result.diff, mode, streak });
 
+  // Live player percentile is a flagged seam until the results service exists.
+  const comparison = { connected: false };
+  getDailyComparison(daily ? daily.seed : run.orgId, result).then((c) => {
+    App.runCtx.comparison = c;
+  });
+
   const { node, play } = buildResultView({
     signed: eng.signed,
     result,
     orgSeason,
     sound,
+    percentile,
+    comparison,
   });
 
   const shareCtx = {
@@ -1943,6 +2337,8 @@ function showResult() {
     year: orgSeason.year,
     result,
     signed: eng.signed,
+    dynastyRoster: orgSeason.realRoster,
+    percentile,
     streak,
     mode,
   };
@@ -2086,8 +2482,10 @@ function renderError(err) {
 }
 
 if (typeof window !== "undefined") {
-  // Inspection hook for local debugging and automated checks. Harmless in prod.
-  window.__LINEUP_APP__ = App;
+  // Inspection hook for local debugging and automated checks. Off in production.
+  // Turns on with the DEBUG config flag or the ?debug=1 query parameter.
+  const debugOn = DEBUG || /[?&]debug=1\b/.test(window.location.search);
+  if (debugOn) window.__LINEUP_APP__ = App;
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 }
