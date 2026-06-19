@@ -1,0 +1,99 @@
+{
+  "_meta": {
+    "name": "The Lineup dataset, era-matched v1",
+    "status": "VERIFIED. Every win total is real and sourced from this compile. Pools are era-matched (a target's pack is drawn only from that season's drivers).",
+    "depthNote": "2021 is the deep year (10 verified driver-seasons), so difficulty can be tuned on it now. 2019 has a 6-driver verified pool. 1998 and 1967 are single-seat legend targets. The engine should flag the thin years until they are filled.",
+    "expansion": "To add depth per year, the clean authoritative source is Motorsport Stats (your own data). One season export gives exact wins for every driver that year. Public tabular sites are blocked or messy, which is why this v1 includes only what is verified, not guessed.",
+    "tierScale": "LEGEND 13+, CHAMPION 7 to 12, RACE WINNER 4 to 6, CONTENDER 1 to 3, FIELD 0",
+    "sources": {
+      "2021": "Larson 10, Truex 4, Bowman 4, Hamlin 2, Elliott 2, Keselowski 1, Byron 1, Wallace 1 (first win, Talladega), McDowell 1 (Daytona 500), Bell 1 (Daytona road course). CBS Sports 2021 final standings and Hendrick team records.",
+      "2019": "Truex 7, Hamlin 6, Busch 5, Jones 1 (Joe Gibbs Racing, MRN). Bowman 1 (first win, Chicagoland) and Haley 1 (first win, Daytona II) per NBC Sports 2019 by the numbers.",
+      "1998": "Jeff Gordon 13 wins.",
+      "1967": "Richard Petty 27 wins, the all time single season record."
+    }
+  },
+
+  "orgSeasons": [
+    {
+      "id": "2021-hendrick",
+      "year": 2021,
+      "org": "Hendrick Motorsports",
+      "mfr": "Chevrolet",
+      "seats": 4,
+      "benchmarkWins": 17,
+      "band": "HARD",
+      "note": "The record setting season. The most wins in a single year in the team's history.",
+      "realRoster": [
+        { "driver": "Kyle Larson", "wins": 10, "tier": "CHAMPION" },
+        { "driver": "Alex Bowman", "wins": 4, "tier": "RACE WINNER" },
+        { "driver": "Chase Elliott", "wins": 2, "tier": "CONTENDER" },
+        { "driver": "William Byron", "wins": 1, "tier": "CONTENDER" }
+      ]
+    },
+    {
+      "id": "2019-jgr",
+      "year": 2019,
+      "org": "Joe Gibbs Racing",
+      "mfr": "Toyota",
+      "seats": 4,
+      "benchmarkWins": 19,
+      "band": "HARD",
+      "note": "An all four cars juggernaut. They won more than half the races and the title.",
+      "realRoster": [
+        { "driver": "Martin Truex Jr", "wins": 7, "tier": "CHAMPION" },
+        { "driver": "Denny Hamlin", "wins": 6, "tier": "RACE WINNER" },
+        { "driver": "Kyle Busch", "wins": 5, "tier": "RACE WINNER" },
+        { "driver": "Erik Jones", "wins": 1, "tier": "CONTENDER" }
+      ]
+    },
+    {
+      "id": "1998-gordon",
+      "year": 1998,
+      "org": "Jeff Gordon (Hendrick)",
+      "mfr": "Chevrolet",
+      "seats": 1,
+      "benchmarkWins": 13,
+      "band": "LEGEND",
+      "note": "One driver, thirteen wins. A modern peak. Fill the one seat and try to match it.",
+      "realRoster": [
+        { "driver": "Jeff Gordon", "wins": 13, "tier": "LEGEND" }
+      ]
+    },
+    {
+      "id": "1967-petty",
+      "year": 1967,
+      "org": "Richard Petty (Petty Enterprises)",
+      "mfr": "Plymouth",
+      "seats": 1,
+      "benchmarkWins": 27,
+      "band": "LEGEND",
+      "note": "The King. Twenty seven wins in a single season, a record that will likely never fall.",
+      "realRoster": [
+        { "driver": "Richard Petty", "wins": 27, "tier": "LEGEND" }
+      ]
+    }
+  ],
+
+  "driverPool": [
+    { "driver": "Kyle Larson", "year": 2021, "wins": 10, "tier": "CHAMPION" },
+    { "driver": "Martin Truex Jr", "year": 2021, "wins": 4, "tier": "RACE WINNER" },
+    { "driver": "Alex Bowman", "year": 2021, "wins": 4, "tier": "RACE WINNER" },
+    { "driver": "Denny Hamlin", "year": 2021, "wins": 2, "tier": "CONTENDER" },
+    { "driver": "Chase Elliott", "year": 2021, "wins": 2, "tier": "CONTENDER" },
+    { "driver": "Brad Keselowski", "year": 2021, "wins": 1, "tier": "CONTENDER" },
+    { "driver": "William Byron", "year": 2021, "wins": 1, "tier": "CONTENDER" },
+    { "driver": "Bubba Wallace", "year": 2021, "wins": 1, "tier": "CONTENDER" },
+    { "driver": "Michael McDowell", "year": 2021, "wins": 1, "tier": "CONTENDER" },
+    { "driver": "Christopher Bell", "year": 2021, "wins": 1, "tier": "CONTENDER" },
+
+    { "driver": "Martin Truex Jr", "year": 2019, "wins": 7, "tier": "CHAMPION" },
+    { "driver": "Denny Hamlin", "year": 2019, "wins": 6, "tier": "RACE WINNER" },
+    { "driver": "Kyle Busch", "year": 2019, "wins": 5, "tier": "RACE WINNER" },
+    { "driver": "Erik Jones", "year": 2019, "wins": 1, "tier": "CONTENDER" },
+    { "driver": "Alex Bowman", "year": 2019, "wins": 1, "tier": "CONTENDER" },
+    { "driver": "Justin Haley", "year": 2019, "wins": 1, "tier": "CONTENDER" },
+
+    { "driver": "Jeff Gordon", "year": 1998, "wins": 13, "tier": "LEGEND" },
+    { "driver": "Richard Petty", "year": 1967, "wins": 27, "tier": "LEGEND" }
+  ]
+}
