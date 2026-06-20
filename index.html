@@ -427,6 +427,22 @@ kbd {
 }
 .seam-flag::before { content: "seam "; font-family: var(--display); font-weight: 700; color: var(--faint); letter-spacing: 0.08em; }
 
+/* ===== pending (excluded) targets ===== */
+.archive-list.pending li.locked {
+  cursor: default;
+  border-style: dashed;
+  background: var(--panel);
+  opacity: 0.85;
+  align-items: flex-start;
+}
+.archive-list.pending li.locked:hover { border-color: var(--line); background: var(--panel); }
+.archive-list.pending .a-meta { color: var(--faint); white-space: normal; line-height: 1.4; margin-top: 4px; }
+.archive-list.pending .lock {
+  font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  font-size: 11px; color: var(--faint); border: 1px solid var(--line2); border-radius: 999px;
+  padding: 3px 10px; white-space: nowrap; flex: none;
+}
+
   </style>
 </head>
 <body>
@@ -1433,9 +1449,14 @@ function dailySeed(dateKey, orgId) {
   return `${DATA_VERSION}|${dateKey}|${orgId}`;
 }
 
-// Resolve the full daily context from a date and the loaded org seasons.
+// Resolve the full daily context from a date and a list of servable targets.
+// Pass only playable targets here. Returns null orgSeason when none are servable
+// so the caller can show the pending state instead of a forced deal.
 function resolveDaily(orgSeasons, date = new Date()) {
   const dateKey = dateKeyUTC(date);
+  if (!orgSeasons || orgSeasons.length === 0) {
+    return { dateKey, dayNo: dayNumber(date), orgSeason: null, seed: null };
+  }
   const idx = pickDailyOrgIndex(orgSeasons.length, dateKey);
   const orgSeason = orgSeasons[idx];
   return {
@@ -1656,6 +1677,69 @@ class Engine {
 }
 
 
+/* ===== src/game/targets.js ===== */
+// targets.js
+// The gate that decides whether a target is fit to serve. A target is only
+// served (in daily and archive) when its era matched draft pool clearly exceeds
+// the seat count with real rival drivers, and a miss is actually possible.
+//
+// This kills two bad deals:
+//   1. The forced lineup: too few same season drivers, you must sign them all.
+//   2. The dynasty against itself: the only drivers available are the org's own
+//      roster, so your draft is their draft and you cannot really lose.
+//
+// A target that fails is kept out of both modes and flagged with the reason.
+// We never relax the gate by inventing a driver.
+
+
+// Evaluate one target against the pool. Pure. Returns the verdict and why.
+function evaluateTarget(orgSeason, pool) {
+  const seats = orgSeason.seats;
+  const sameSeason = (ERA_MATCHED ? pool.filter((c) => c.year === orgSeason.year) : pool);
+  const rosterNames = new Set(orgSeason.realRoster.map((r) => r.driver));
+  const rivals = sameSeason.filter((c) => !rosterNames.has(c.driver));
+
+  // Weakest lineup the pool allows. If even this beats the benchmark, you can
+  // never miss, so there is no real contest.
+  const lowestSeatsSum = sameSeason
+    .map((c) => c.wins)
+    .sort((a, b) => a - b)
+    .slice(0, seats)
+    .reduce((a, b) => a + b, 0);
+
+  const reasons = [];
+  if (sameSeason.length <= seats) {
+    reasons.push(`Forced lineup. Only ${sameSeason.length} verified ${orgSeason.year} drivers for ${seats} ${seats === 1 ? "seat" : "seats"}.`);
+  }
+  if (rivals.length < seats) {
+    reasons.push(`Needs ${seats} or more rival ${orgSeason.year} drivers beyond the roster. Has ${rivals.length}.`);
+  }
+  if (!(lowestSeatsSum < orgSeason.benchmarkWins)) {
+    reasons.push(`No real chance to miss. Even the weakest ${orgSeason.year} lineup reaches ${orgSeason.benchmarkWins}.`);
+  }
+
+  return {
+    id: orgSeason.id,
+    playable: reasons.length === 0,
+    rivals: rivals.length,
+    poolDepth: sameSeason.length,
+    seats,
+    reason: reasons.join(" "),
+  };
+}
+
+function getPlayableTargets(orgSeasons, pool) {
+  return orgSeasons.filter((os) => evaluateTarget(os, pool).playable);
+}
+
+// Excluded targets, each paired with the reason, for the flagged pending list.
+function getExcludedTargets(orgSeasons, pool) {
+  return orgSeasons
+    .map((os) => ({ os, verdict: evaluateTarget(os, pool) }))
+    .filter((x) => !x.verdict.playable);
+}
+
+
 /* ===== src/game/analyze.js ===== */
 // analyze.js
 // Difficulty measurement and the shared seed percentile. All pure. No real win
@@ -1736,6 +1820,27 @@ function smartDraft(pack, seats, passes) {
 // many dailies are degenerate (no real choice) because the same season pool is
 // too thin. That is the data dependency made visible.
 function sweep(orgSeasons, pool, days = 120, start = Date.UTC(2026, 0, 1)) {
+  // Only servable targets are swept. The rest are excluded by the playability
+  // gate, the same gate the daily and archive use.
+  const playable = getPlayableTargets(orgSeasons, pool);
+  const excluded = orgSeasons.length - playable.length;
+  if (playable.length === 0) {
+    return {
+      days: 0,
+      playableTargets: 0,
+      excludedTargets: excluded,
+      winRate: null,
+      victoryLaneRate: null,
+      missRate: null,
+      dataGapRate: null,
+      degenerateRate: null,
+      byBand: {},
+      target: DIFFICULTY,
+      inTargetBand: false,
+      note: "No servable targets. Every target is a forced lineup or a dynasty against itself. Add rival drivers for these seasons.",
+    };
+  }
+
   let wins = 0;
   let victoryLanes = 0;
   let misses = 0;
@@ -1745,7 +1850,7 @@ function sweep(orgSeasons, pool, days = 120, start = Date.UTC(2026, 0, 1)) {
 
   for (let day = 0; day < days; day++) {
     const d = new Date(start + day * 86400000);
-    const daily = resolveDaily(orgSeasons, d);
+    const daily = resolveDaily(playable, d);
     const run = buildRun(daily.orgSeason, pool, daily.seed);
 
     const signed = smartDraft(run.pack, run.seats, run.passes);
@@ -1771,6 +1876,8 @@ function sweep(orgSeasons, pool, days = 120, start = Date.UTC(2026, 0, 1)) {
   const winRate = (wins + victoryLanes) / days;
   return {
     days,
+    playableTargets: playable.length,
+    excludedTargets: excluded,
     winRate, // share of dailies a smart draft wins (includes Victory Lanes)
     victoryLaneRate: victoryLanes / days,
     missRate: misses / days,
@@ -2086,9 +2193,17 @@ function benchmarkHero(orgSeason, { label = "Wins to beat" } = {}) {
 }
 
 function renderHome() {
-  const daily = resolveDaily(App.data.orgSeasons, new Date());
   App.runCtx = null;
 
+  // Only servable targets reach the daily. If none qualify, show the pending
+  // state rather than a forced or self matched deal.
+  const playable = getPlayableTargets(App.data.orgSeasons, App.data.pool);
+  if (playable.length === 0) {
+    renderNoDaily();
+    return;
+  }
+
+  const daily = resolveDaily(playable, new Date());
   const played = hasPlayed(daily.dateKey);
   const children = [
     el("div", { class: "checker" }),
@@ -2118,6 +2233,47 @@ function renderHome() {
 
   setScreen("home", ...children);
   announce(`Today's organization. ${daily.orgSeason.year} ${daily.orgSeason.org}. ${daily.orgSeason.benchmarkWins} wins to beat.`);
+}
+
+// The pending state. No target is fit to serve, so there is no daily. We say so
+// plainly and list what each target needs. Targets unlock the moment the
+// verified data gives them real rival drivers.
+function renderNoDaily() {
+  const excluded = getExcludedTargets(App.data.orgSeasons, App.data.pool);
+  setScreen(
+    "home",
+    el("div", { class: "checker" }),
+    el("div", { class: "benchmark", style: "margin-top:6px" }, [
+      el("div", { class: "label", text: "No daily yet" }),
+      el("div", { class: "org", style: "font-size:24px", text: "Pending verified data" }),
+      el("div", { class: "lede", style: "margin:10px 0 0", text: "A target is only served when its season offers a real draft: rival drivers to choose from, and a real chance to miss. None qualify yet. No forced lineups, no dynasty against itself." }),
+    ]),
+    excludedList(excluded),
+    el("div", { class: "actions", style: "margin-top:12px" }, [
+      el("button", { class: "btn ghost", text: "Archive", onClick: () => renderArchive() }),
+      el("button", { class: "btn ghost", text: "Stats", onClick: () => renderStats() }),
+    ])
+  );
+  announce("No daily yet. Targets are pending verified data.");
+}
+
+// The flagged list of targets that are not fit to serve, with the reason.
+function excludedList(excluded) {
+  if (!excluded.length) return null;
+  return el("div", {}, [
+    el("div", { class: "section-title", text: "Pending targets" }),
+    el("ul", { class: "archive-list pending" },
+      excluded.map(({ os, verdict }) =>
+        el("li", { class: "locked", "aria-label": `${os.year} ${os.org}, not yet servable. ${verdict.reason}` }, [
+          el("div", {}, [
+            el("div", { class: "a-org", text: `${os.year} ${os.org}` }),
+            el("div", { class: "a-meta", text: verdict.reason }),
+          ]),
+          el("div", { class: "lock", text: "pending" }),
+        ])
+      )
+    ),
+  ]);
 }
 
 function playedSummary(rec) {
@@ -2375,34 +2531,44 @@ function showShareFallback(text) {
 /* ---------------- archive ---------------- */
 
 function renderArchive() {
-  const seasons = App.data.orgSeasons.slice().sort((a, b) => b.year - a.year);
-  const list = el("ul", { class: "archive-list" },
-    seasons.map((os) => {
-      const band = bandMeta(os.band);
-      return el("li", {
-        tabindex: "0",
-        role: "button",
-        "aria-label": `${os.year} ${os.org}. ${os.benchmarkWins} wins to beat. Band ${os.band}.`,
-        onClick: () => startRun(os, "archive", null),
-        onKeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startRun(os, "archive", null); } },
-      }, [
-        el("div", {}, [
-          el("div", { class: "a-org", text: `${os.year} ${os.org}` }),
-          el("div", { class: "a-meta" }, [
-            el("span", { class: "tag", style: `color:${band.color};font-size:10px`, text: band.label }),
-            el("span", { text: ` ${os.seats} ${os.seats === 1 ? "seat" : "seats"}` }),
-          ]),
-        ]),
-        el("div", { class: "a-bench", text: String(os.benchmarkWins) }),
-      ]);
-    })
-  );
+  // Archive serves the same gate as the daily. Only servable targets are
+  // playable. The rest are shown as pending, flagged, and not clickable.
+  const playable = getPlayableTargets(App.data.orgSeasons, App.data.pool)
+    .slice()
+    .sort((a, b) => b.year - a.year);
+  const excluded = getExcludedTargets(App.data.orgSeasons, App.data.pool)
+    .sort((a, b) => b.os.year - a.os.year);
+
+  const list = playable.length
+    ? el("ul", { class: "archive-list" },
+        playable.map((os) => {
+          const band = bandMeta(os.band);
+          return el("li", {
+            tabindex: "0",
+            role: "button",
+            "aria-label": `${os.year} ${os.org}. ${os.benchmarkWins} wins to beat. Band ${os.band}.`,
+            onClick: () => startRun(os, "archive", null),
+            onKeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startRun(os, "archive", null); } },
+          }, [
+            el("div", {}, [
+              el("div", { class: "a-org", text: `${os.year} ${os.org}` }),
+              el("div", { class: "a-meta" }, [
+                el("span", { class: "tag", style: `color:${band.color};font-size:10px`, text: band.label }),
+                el("span", { text: ` ${os.seats} ${os.seats === 1 ? "seat" : "seats"}` }),
+              ]),
+            ]),
+            el("div", { class: "a-bench", text: String(os.benchmarkWins) }),
+          ]);
+        })
+      )
+    : el("div", { class: "seam-flag", text: "No servable targets yet. Each needs real rival drivers from its season before it can be played." });
 
   setScreen("archive",
     el("div", { class: "checker thin" }),
     el("div", { class: "section-title", text: "Archive" }),
-    el("div", { class: "lede", text: "Any organization season, unlimited, unranked. These runs never touch your streak." }),
-    list
+    el("div", { class: "lede", text: "Any servable organization season, unlimited, unranked. These runs never touch your streak." }),
+    list,
+    excludedList(excluded)
   );
 }
 
