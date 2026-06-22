@@ -496,7 +496,21 @@ kbd {
 }
 .raceflag.out { animation: flagout 240ms var(--ease) forwards; }
 .raceflag.green { background: var(--green); color: #06120c; }
-.raceflag.checkered { color: var(--text); background: var(--check); background-size: 22px 22px; text-shadow: 0 2px 6px rgba(0,0,0,0.9); }
+/* Crisp linear-gradient checkerboard. The conic --check antialiases along its
+   wedge edges and mushes when the 12px tile stretches to 22px, so the flag uses
+   hard linear-gradient steps instead. --check stays for the decorative strips. */
+.raceflag.checkered {
+  color: var(--text);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(45deg, var(--text) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--text) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--text) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--text) 75%);
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+}
 @keyframes flagin { from { opacity: 0; transform: translateY(-10px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes flagout { to { opacity: 0; transform: translateY(-8px) scale(0.98); } }
 
