@@ -317,9 +317,18 @@ body {
 .lseat-open { font-size: 12px; color: var(--faint); }
 .lseat-nm { font-family: var(--display); font-weight: 700; font-size: 18px; }
 .lseat-tier { font-family: var(--display); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.lseat-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 
 /* team tag on the dealt card (tier stays hidden until decided) */
 .card .tag.team { color: var(--muted); border-color: var(--line2); font-size: 11px; }
+/* POACH badge: marks the one legal off-team driver (card.isAnchor). A deliberate
+   amber pill, not body text. Same look on the dealt card and the signed seat. */
+.tag.poach {
+  display: inline-block; vertical-align: middle; border: 0;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--bg); background: var(--amber); border-radius: 4px; padding: 2px 6px;
+}
+.card .tag.poach { margin-left: 6px; }
 .card.revealed .hide .q { transition: color 160ms; }
 
 /* ----- action bar ----- */
@@ -476,6 +485,7 @@ kbd {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .vs-row .cell.them .nm { text-align: right; }
+.vs-row .cell .nm-wrap { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
 .vs-row .cell .w { font-family: var(--display); font-weight: 700; font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .vs-row .cell .w.lead { color: var(--amber2); }
 .vs-row .cell.empty { opacity: 0.25; }
@@ -1141,6 +1151,9 @@ function driverCard(card, { dealing = true } = {}) {
     el("div", { class: "stripe" }),
     el("div", { class: "body" }, [
       el("span", { class: "tag team", text: card.team || "" }),
+      // The one legal poach: a driver off the real team, offered when the field
+      // can't reach the benchmark alone. Tagged so the player knows on sight.
+      card.isAnchor ? el("span", { class: "tag poach", text: "POACH" }) : null,
       el("div", { class: "driver display", text: card.driver }),
       el("div", { class: "year", text: String(card.year) }),
       el("div", { class: "hide" }, [
@@ -1163,7 +1176,12 @@ function lineupSeat(index, card) {
   }
   const t = tierMeta(card.tier);
   return el("div", { class: "lseat filled" }, [
-    el("span", { class: "lseat-nm", text: card.driver }),
+    // Name and, on a poached driver, the POACH marker beside it, so a signed
+    // poach reads as intentional in the garage rather than a duplicate.
+    el("div", { class: "lseat-name" }, [
+      el("span", { class: "lseat-nm", text: card.driver }),
+      card.isAnchor ? el("span", { class: "tag poach", text: "POACH" }) : null,
+    ]),
     el("span", { class: "lseat-tier", style: `color:${t.color}`, text: t.label }),
   ]);
 }
@@ -1212,7 +1230,8 @@ function buildOverlay() {
     el("p", { class: "howto-hook", text: "Out-draft a real NASCAR team and beat history." }),
     el("ul", { class: "howto-list" }, [
       el("li", { text: "Each day you get one real Cup team and season. Its cars' combined wins that year are the number to beat." }),
-      el("li", { text: "You are dealt real drivers from that same season. Sign a few to fill your garage, pass the rest. Passes are limited." }),
+      el("li", { text: "You are dealt real drivers from that same season. Sign a few to fill your team, pass the rest. Passes are limited." }),
+      el("li", { text: "Some days the field can't beat the real team alone. On those, their best driver lands in your deal and you can sign him. One poach, no more." }),
       el("li", { text: "Every card hides its win total until you decide. The skill is remembering who was actually winning that year." }),
       el("li", { text: "Green flag drops and the wins count up. Match the real team for a Win, beat them clearly for Victory Lane." }),
     ]),
@@ -1280,7 +1299,7 @@ const TIER_EMOJI = {
 const OUTCOME_LINE = {
   [OUTCOME.VICTORY_LANE]: "🏁 VICTORY LANE",
   [OUTCOME.WIN]: "✅ WIN",
-  [OUTCOME.MISS]: "❌ MISS",
+  [OUTCOME.MISS]: "❌ LOST",
 };
 
 function squares(cards) {
@@ -1300,8 +1319,8 @@ function shortOrg(org) {
 // The hook line emphasizes the core premise: you built a rival garage to take on
 // the real team, not a copy of it.
 function premise(result, year, team) {
-  if (result.outcome === OUTCOME.VICTORY_LANE) return `🏁 Beat ${year} ${team} with a rival garage`;
-  if (result.outcome === OUTCOME.WIN) return `✅ Matched ${year} ${team} with a rival garage`;
+  if (result.outcome === OUTCOME.VICTORY_LANE) return `🏁 Beat ${year} ${team} with your team`;
+  if (result.outcome === OUTCOME.WIN) return `✅ Matched ${year} ${team} with your team`;
   return `❌ Came up short of ${year} ${team}`;
 }
 
@@ -1320,7 +1339,7 @@ function buildShareText(ctx) {
   ];
 
   if (percentile && percentile.lineups > 1) {
-    lines.push(percentile.isBest ? "🏆 best possible garage" : `📊 beat ${percentile.beatPct}% of garages`);
+    lines.push(`📊 beat ${percentile.beatPct}% of lineups`);
   }
   if (mode === "daily" && streak > 0) lines.push(`🔥 streak ${streak}`);
   lines.push("motorsport.com/lineup");
@@ -1350,28 +1369,28 @@ async function shareOrCopy(text) {
 /* ===== src/ui/reveal.js ===== */
 // reveal.js
 // The payoff, run like a race. Green flag, the wins count up driver by driver,
-// the real team's total counts up, checkered flag, then the verdict. Your garage
+// the real team's total counts up, checkered flag, then the verdict. Your team
 // against the real team, head to head.
 
 
 const VERDICT = {
   [OUTCOME.VICTORY_LANE]: { cls: "victory", word: "VICTORY LANE" },
   [OUTCOME.WIN]: { cls: "win", word: "WIN" },
-  [OUTCOME.MISS]: { cls: "miss", word: "MISS" },
+  [OUTCOME.MISS]: { cls: "miss", word: "LOST" },
 };
 
 function verdictSub(result) {
-  if (result.outcome === OUTCOME.VICTORY_LANE) return "Your garage beat the real team.";
-  if (result.outcome === OUTCOME.MISS) return "Short of the real team this time.";
+  if (result.outcome === OUTCOME.VICTORY_LANE) return "Your team beat the real team.";
+  if (result.outcome === OUTCOME.MISS) return `Lost by ${result.benchmark - result.total}.`;
   return result.diff === 0 ? "You matched the real team." : `You edged the real team by ${result.diff}.`;
 }
 
 // The closing line on the real-team note depends on how the run ended. A loss
 // must never claim a win, so this is gated on the outcome, not hardcoded.
 function celebrateClause(result) {
-  if (result.outcome === OUTCOME.MISS) return "Your rival garage came up short this time.";
-  if (result.outcome === OUTCOME.WIN && result.diff === 0) return "You matched them with a rival garage.";
-  return "You beat them with a rival garage.";
+  if (result.outcome === OUTCOME.MISS) return "Your team came up short this time.";
+  if (result.outcome === OUTCOME.WIN && result.diff === 0) return "You matched them with your team.";
+  return "You beat them with your team.";
 }
 
 // A short, clean team name for the head to head label.
@@ -1403,7 +1422,7 @@ function buildResultView(ctx) {
   const themTot = el("div", { class: "tot num", id: "them-tot", text: "0" });
 
   const tops = el("div", { class: "vs-tops" }, [
-    el("div", { class: "vs-top you" }, [el("div", { class: "lbl", text: "Your garage" }), youTot]),
+    el("div", { class: "vs-top you" }, [el("div", { class: "lbl", text: "Your team" }), youTot]),
     el("div", { class: "vs-x display", text: "VS" }),
     el("div", { class: "vs-top them" }, [
       el("div", { class: "lbl", text: `${orgSeason.year} ${shortOrg(orgSeason.org)}` }),
@@ -1419,7 +1438,16 @@ function buildResultView(ctx) {
     const yW = y ? el("span", { class: "w", text: "??", style: `color:${tierMeta(y.tier).color}` }) : null;
     const tW = t ? el("span", { class: "w", text: "??" }) : null;
     const yCell = el("div", { class: "cell you" + (y ? "" : " empty") }, y
-      ? [el("span", { class: "nm", text: y.driver }), yW]
+      ? [
+          // Name + POACH marker grouped so the badge sits beside the name (the cell
+          // is space-between). Flags the one legal off-team driver on your side so a
+          // signed poach reads as intentional, not a duplicate of the opponent.
+          el("span", { class: "nm-wrap" }, [
+            el("span", { class: "nm", text: y.driver }),
+            y.isAnchor ? el("span", { class: "tag poach", text: "POACH" }) : null,
+          ]),
+          yW,
+        ]
       : [el("span", { class: "nm faint", text: "" })]);
     const tCell = el("div", { class: "cell them" + (t ? "" : " empty") }, t
       ? [tW, el("span", { class: "nm", text: t.driver })]
@@ -1478,18 +1506,12 @@ function buildResultView(ctx) {
       ]),
     ];
     if (percentile && percentile.lineups > 1) {
-      // The "best possible garage" brag only holds when the best reachable score
-      // actually wins. If even the ceiling falls short, say so plainly.
-      let pct;
-      if (percentile.isBest) {
-        pct = percentile.best >= orgSeason.benchmarkWins
-          ? "Best possible garage from this deal. Nobody could top it."
-          : "No winning garage was reachable from this deal.";
-      } else {
-        pct = `Your garage beat ${percentile.beatPct} percent of all possible garages from this deal.`;
-      }
+      // No "shared seed" label and no "best possible garage" brag (cut as clutter).
+      // The honest fallback stays: if even the best reachable lineup loses, say so.
+      const pct = (percentile.isBest && percentile.best < orgSeason.benchmarkWins)
+        ? "No winning lineup was reachable from this deal."
+        : `Your team beat ${percentile.beatPct} percent of all possible lineups from this deal.`;
       kids.push(el("div", { class: "pct" }, [
-        el("span", { class: "pct-k", text: "Shared seed rating" }),
         el("span", { class: "pct-v", text: pct }),
       ]));
     }
@@ -1506,7 +1528,7 @@ function buildResultView(ctx) {
     if (comparison && comparison.connected) {
       mount(liveSlot, el("div", { class: "pct live" }, [
         el("span", { class: "pct-k", text: "Live player percentile" }),
-        el("span", { class: "pct-v", text: `You beat ${comparison.beatPct} percent of ${comparison.players} players on today's seed.` }),
+        el("span", { class: "pct-v", text: `You beat ${comparison.beatPct} percent of ${comparison.players} players today.` }),
       ]));
     } else {
       mount(liveSlot, el("div", { class: "seam-flag", text: "Live percentile versus other players: pending the results service." }));
@@ -2907,6 +2929,28 @@ function toast(msg) {
 
 /* ---------------- home / daily ---------------- */
 
+// The opponent named by drivers for the matchup header. Surnames only — the
+// per-driver win split stays hidden until the end tally. Drops middle names and
+// roman-numeral suffixes; keeps a Jr/Sr so juniors stay distinct.
+function driverSurname(name) {
+  const tokens = String(name).trim().split(/\s+/).filter(Boolean);
+  while (tokens.length > 1 && /^(II|III|IV|V)$/i.test(tokens[tokens.length - 1])) tokens.pop();
+  if (!tokens.length) return String(name);
+  const last = tokens[tokens.length - 1];
+  if (tokens.length > 1 && /^(Jr|Sr)\.?$/i.test(last)) return `${tokens[tokens.length - 2]} ${last.replace(/\.$/, "")}`;
+  return last;
+}
+function joinNames(names) {
+  if (names.length <= 1) return names[0] || "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+// "Beat Stewart and Labonte" — surnames ordered by wins (no counts shown).
+function beatLine(orgSeason) {
+  const names = orgSeason.realRoster.slice().sort((a, b) => b.wins - a.wins).map((r) => driverSurname(r.driver));
+  return `Beat ${joinNames(names)}`;
+}
+
 function benchmarkHero(orgSeason, { label = "Wins to beat" } = {}) {
   const band = bandMeta(difficultyBand(orgSeason.benchmarkWins));
   const passes = passesForTarget(orgSeason);
@@ -2914,7 +2958,7 @@ function benchmarkHero(orgSeason, { label = "Wins to beat" } = {}) {
     el("div", { class: "label", text: "The team to beat" }),
     el("div", { class: "row spread" }, [
       el("div", {}, [
-        el("div", { class: "org", text: `${orgSeason.year} ${orgSeason.org}` }),
+        el("div", { class: "org", text: beatLine(orgSeason) }),
       ]),
       el("div", {}, [
         el("div", { class: "label", style: "text-align:right", text: label }),
@@ -2948,7 +2992,7 @@ function renderHome() {
       el("div", { class: "wordmark", style: "font-size:20px", text: "THE LINEUP" }),
       el("div", { class: "muted", style: "font-size:12px", text: `Daily #${daily.dayNo}` }),
     ]),
-    el("div", { class: "lede", text: `Build a Cup garage from one season. You get ${passes} ${passes === 1 ? "pass" : "passes"}. Beat the real team's win total.` }),
+    el("div", { class: "lede", text: `Build a Cup team from one season. You get ${passes} ${passes === 1 ? "pass" : "passes"}. Beat the real team's win total.` }),
     benchmarkHero(daily.orgSeason),
   ];
 
@@ -2973,7 +3017,7 @@ function renderHome() {
   }
 
   setScreen("home", ...children);
-  announce(`Today's team to beat. ${daily.orgSeason.year} ${daily.orgSeason.org}. ${daily.orgSeason.benchmarkWins} wins to beat.`);
+  announce(`Today's team to beat. ${beatLine(daily.orgSeason)}. ${daily.orgSeason.benchmarkWins} wins to beat.`);
 }
 
 // The pending state. No target is fit to serve, so there is no daily. We say so
@@ -3004,7 +3048,7 @@ function excludedList(excluded) {
   return el("details", { class: "locked-note" }, [
     el("summary", { text: "Why are some seasons locked?" }),
     el("div", { class: "lede", style: "margin-top:8px" , text:
-      `${excluded.length} team seasons are not served as dailies. A season is locked when it is below the ${MIN_BENCHMARK} win gate, has too few rival drivers to field a garage, or cannot be beaten by a rival garage plus one anchor.` }),
+      `${excluded.length} team seasons are not served as dailies. A season is locked when it is below the ${MIN_BENCHMARK} win gate, has too few rival drivers to field a team, or cannot be beaten by a rival team plus one anchor.` }),
   ]);
 }
 
@@ -3012,7 +3056,7 @@ function playedSummary(rec, board) {
   const v = {
     [OUTCOME.VICTORY_LANE]: { cls: "victory", word: "Victory Lane" },
     [OUTCOME.WIN]: { cls: "win", word: "Win" },
-    [OUTCOME.MISS]: { cls: "miss", word: "Miss" },
+    [OUTCOME.MISS]: { cls: "miss", word: "Lost" },
   }[rec.outcome];
   const stats = getStats();
   return el("div", {}, [
@@ -3023,8 +3067,7 @@ function playedSummary(rec, board) {
     ]),
     rec.beatPct !== null && rec.beatPct !== undefined
       ? el("div", { class: "pct", style: "margin:8px 0" }, [
-          el("span", { class: "pct-k", text: "Shared seed rating" }),
-          el("span", { class: "pct-v", text: `Beat ${rec.beatPct} percent of possible lineups.` }),
+          el("span", { class: "pct-v", text: `You beat ${rec.beatPct} percent of all possible lineups today.` }),
         ])
       : null,
     leaderboardBlock(board, rec.benchmark),
@@ -3065,7 +3108,7 @@ function renderDeal() {
     el("div", { class: "row spread" }, [
       el("div", {}, [
         el("div", { class: "label", text: "Wins to beat" }),
-        el("div", { class: "org", style: "font-size:21px", text: `${os.year} ${os.org}` }),
+        el("div", { class: "org", style: "font-size:21px", text: beatLine(os) }),
       ]),
       el("div", { class: "num", style: "font-size:46px;color:var(--amber);line-height:0.85", text: String(os.benchmarkWins) }),
     ]),
@@ -3075,7 +3118,7 @@ function renderDeal() {
   const lineup = el("div", { class: "lineup", id: "lineup" });
   const passesRow = el("div", { class: "passes", id: "passesRow" });
   const passesWrap = el("div", { class: "row spread", style: "margin:2px 0 6px" }, [
-    el("div", { class: "label muted", style: "font-size:11px;letter-spacing:.1em;text-transform:uppercase", text: "Your garage" }),
+    el("div", { class: "label muted", style: "font-size:11px;letter-spacing:.1em;text-transform:uppercase", text: "Your team" }),
     el("div", { class: "row", style: "gap:8px" }, [
       el("span", { class: "label muted", style: "font-size:11px;letter-spacing:.1em;text-transform:uppercase", text: "Passes" }),
       passesRow,
@@ -3198,7 +3241,7 @@ function showResult() {
 
   track("tally", { org: orgSeason.id, total: result.total, benchmark: result.benchmark, mode });
 
-  // Shared seed rating: where this draft ranks among every possible lineup from
+  // Daily percentile: where this draft ranks among every possible lineup from
   // the same deal. Honest, computable, no backend.
   const run = App.runCtx.run;
   const percentile = draftPercentile(result.total, run.pack.map((c) => c.wins), run.seats, run.passes);
@@ -3348,19 +3391,19 @@ function leaderboardBlock(board, benchmark) {
       el("span", { class: "board-k", text: k }),
       el("span", { class: "board-v num", text: String(v) }),
     ]);
-  const rows = [row("Best possible garage", board.best, "ceiling")];
+  const rows = [];
   if (typeof benchmark === "number") rows.push(row("Wins to beat", benchmark));
-  if (p) rows.push(row("Your garage", p.total, "you"));
+  if (p) rows.push(row("Your team", p.total, "you"));
 
   const standing = p
     ? p.isBest
-      ? "Top of the board. No garage from this deal could beat yours."
-      : `You rank ${ordinal(p.rank)} of ${board.lineups} possible garages, ahead of ${p.beatPct} percent of the field.`
-    : `${board.lineups} garages are possible from today's deal.`;
+      ? "Top of the board today. No lineup from today's deal beats yours."
+      : `You rank ${ordinal(p.rank)} of ${board.lineups} possible lineups, ahead of ${p.beatPct} percent of the field.`
+    : `${board.lineups} lineups are possible from today's deal.`;
 
   return el("div", { class: "board" }, [
     el("div", { class: "section-title", text: "Daily board" }),
-    el("div", { class: "lede", style: "margin:2px 0 8px", text: "Shared seed. Everyone gets the same deal today, so this board is the same for everyone." }),
+    el("div", { class: "lede", style: "margin:2px 0 8px", text: "Everyone gets the same drivers today, so this board is the same for everyone." }),
     el("div", { class: "board-rows" }, rows),
     el("div", { class: "board-standing", text: standing }),
   ]);
@@ -3391,7 +3434,7 @@ function distributionBlock(stats) {
     el("div", { class: "dist" }, [
       bar("Victory", "victory", d.VICTORY_LANE),
       bar("Win", "win", d.WIN),
-      bar("Miss", "miss", d.MISS),
+      bar("Lost", "miss", d.MISS),
     ]),
   ]);
 }
@@ -3413,7 +3456,7 @@ function renderStats() {
       cell(s.bestDiff === null ? "0" : (s.bestDiff >= 0 ? `+${s.bestDiff}` : s.bestDiff), "Best run"),
     ]),
     distributionBlock(s),
-    el("div", { class: "lede", style: "margin-top:14px", text: FEATURES.leaderboard ? "Daily board is live. The shared seed ranks you against every garage today's deal allows." : "The daily uses a shared seed, so a daily leaderboard drops in cleanly." })
+    el("div", { class: "lede", style: "margin-top:14px", text: FEATURES.leaderboard ? "Daily board is live. It ranks you against every lineup today's deal allows." : "Everyone gets the same drivers today, so a daily leaderboard drops in cleanly." })
   );
 }
 
